@@ -1,0 +1,71 @@
+# ******************************************************************************
+#
+# Arduino AVR Core and platform.
+# ------------------------------
+#
+# For more info:
+# https://github.com/arduino/Arduino/wiki/Arduino-IDE-1.5-3rd-party-Hardware-specification
+#
+# This work is licensed under a MIT license https://opensource.org/licenses/MIT
+# 
+# Copyright (c) 2016, Bare Conductive
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ******************************************************************************
+
+menu.cpu=Processor
+##############################################################
+
+ccmono.name=Contact Consequence Mono
+#ccmono.vid.0=0x2A6E
+#ccmono.pid.0=0x0003
+#ccmono.vid.1=0x2A6E
+#ccmono.pid.1=0x8003
+ccmono.upload.tool=arduino:avrdude
+ccmono.upload.protocol=avr109
+ccmono.upload.maximum_size=28672
+ccmono.upload.maximum_data_size=2560
+ccmono.upload.speed=57600
+ccmono.upload.disable_flushing=true
+ccmono.upload.use_1200bps_touch=true
+ccmono.upload.wait_for_upload_port=true
+
+ccmono.bootloader.tool=arduino:avrdude
+ccmono.bootloader.low_fuses=0xde
+ccmono.bootloader.high_fuses=0xd8
+ccmono.bootloader.extended_fuses=0xfb
+ccmono.bootloader.file=caterina/Caterina-ccmono.hex
+ccmono.bootloader.unlock_bits=0x3F
+ccmono.bootloader.lock_bits=0x2F
+
+ccmono.build.mcu=atmega32u4
+ccmono.build.f_cpu=16000000L
+ccmono.build.vid=0x2A6E
+ccmono.build.pid=0x8003
+ccmono.build.usb_product="Contact Consequence Mono"
+ccmono.build.usb_manufacturer="Contact et Consequence"
+ccmono.build.board=AVR_BARETOUCH
+ccmono.build.core=arduino:arduino
+ccmono.build.variant=ccmono
+ccmono.build.extra_flags={build.usb_flags}
+
+ccmono.variant=arduino:standard
+
+##############################################################
