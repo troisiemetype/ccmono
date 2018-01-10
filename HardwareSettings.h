@@ -41,17 +41,17 @@
 #define SDA				2			// PD1
 #define SCL				3			// PD0
 
+#define MISO			14			// PB3
+#define MOSI			16			// PB2
+#define CLK				15			// PB1
+
 #define SD_CS 			17			// PB0
 #define IO_INT			8			// PB4
 #define MAX_CS			11 			// PB7
 #define VS_CS			4			// PD4
 #define VS_DCS			30			// PD5
-#define VS_RST						// PE2 -> Not linked to a pin: define a macro? Rewrite vlsi lib?
+#define VS_RST			31			// PE2 -> custom variant file to add pin 31 for PE2
 #define DREQ			7			// PE6
 #define VS_MIDI_MODE	18			// PF7
-
-
-
-
 
 #endif
