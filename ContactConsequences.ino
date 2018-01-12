@@ -39,6 +39,8 @@ MAX7221Bargraph bargraph;
 const uint8_t numSense = 4;
 CapacitiveADC sense[numSense];
 uint8_t touchState = 0;
+int8_t currentActiveSense = -1;
+uint8_t currentSense = 0;
 
 // SD declaration is made automaticaly by the Arduino library
 
@@ -49,8 +51,8 @@ Adafruit_VS1053_FilePlayer player = Adafruit_VS1053_FilePlayer(VS_RST, VS_CS, VS
 Max9723 audioOut;
 
 const uint8_t numTrack = 4;
-uint16_t fadein[numTrack] = {50, 100, 500, 4000};
-uint16_t fadeout[numTrack] = {4000, 500, 100, 50};
+uint16_t fadein[numTrack] = {0, 1, 25, 500};
+uint16_t fadeout[numTrack] = {1000, 500, 100, 10};
 uint16_t fadeStep = 0;
 uint32_t fadeCounter = 0;
 uint8_t fadeVolume = 1;
@@ -79,7 +81,7 @@ enum mode_t{
 	TWO_TOUCH,
 	TWO_PROX,
 	FADE,
-} mode = ONE_TOUCH;
+} mode = FADE;
 
 enum priority_t{
 	FIRST = 0,
@@ -99,6 +101,8 @@ void setup(){
 
 	Serial.begin(115200);
 //	while(!Serial);
+
+	uint8_t starting = 0;
 
 	// Set the MAX9723 chip, set volume to minimum (0 disconnect the chip and gives a noise).
 	audioOut.begin();
@@ -145,13 +149,15 @@ void setup(){
 	// TODO: we have to read this parameter from SD card on startup.
 	for(uint8_t i = 0; i < numSense; ++i){
 		sense[i].setTouchThreshold(150);
-		sense[i].setTouchReleaseThreshold(90);
+		sense[i].setTouchReleaseThreshold(60);
 		sense[i].setProxThreshold(14);
 		sense[i].setProxReleaseThreshold(8);
 		sense[i].setChargeDelay(5);
 		sense[i].setDebounce(5);
 
-		sense[i].tuneBaseline();
+		sense[i].tuneBaseline(500);
+		starting = i + 1;
+		bargraph.setValue(starting);
 	}
 
 	// Init the music player
@@ -175,8 +181,8 @@ void setup(){
 	}
 
 	// If the player has succesfully start, we display a growing bargraph, left justified.
-	for(uint8_t i = 0; i < 16; ++i){
-		bargraph.setValue(i);
+	for(; starting < 16; ++starting){
+		bargraph.setValue(starting);
 		delay(20);
 	}
 
@@ -193,8 +199,8 @@ void setup(){
 	}
 
 	// If SD init is successfull, we finish the bargrah growth.
-	for(uint8_t i = 16; i < 33; ++i){
-		bargraph.setValue(i);
+	for(; starting < 33; ++starting){
+		bargraph.setValue(starting);
 		delay(20);
 	}
 	delay(250);
@@ -206,9 +212,15 @@ void setup(){
 
 void loop(){
 
+	// TODO: check if auto adjust (reset delay) change one or all channels.
+
+
 //	Serial.println(globalState);
+//	Serial.println(micros());
 	light.setDigit(4, 0);
-	light.setDigit(4, (1 << globalState - 1));
+	light.setDigit(4, (1 << (globalState - 1)));
+
+	if(++currentSense >= numSense) currentSense = 0;
 
 	switch(globalState){
 		case IDLE:
@@ -231,6 +243,35 @@ void loop(){
 		default:
 			break;
 	}
+/*
+	ioPorts.updateInput();
+	testReset();
+
+	if(buttons[4].update(ioPorts.getPin(6))){
+		if(buttons[4].isLongPressed()){
+			sense[0].tuneThreshold(3000);
+			SettingsLocal_t settings = sense[0].getLocalSettings();
+			for(uint8_t i = 0; i < numSense; ++i){
+				sense[i].applyLocalSettings(settings);
+			}
+		}
+	}
+
+	uint8_t update = updateReads();
+
+	for(uint8_t i = 0; i < numSense; ++i){
+		if(!(update & _BV(i))) continue;
+
+		light.setDigit(4, _BV(i));
+		if(touchState & (0b01 << (2 * i))){
+			bargraph.setValue(8);
+		} else if(touchState & (0b10 << (2 * i))){
+			bargraph.setValue(30);
+		} else {
+			bargraph.setValue(0);
+		}
+	}
+*/
 
 }
 
@@ -250,53 +291,48 @@ void loopIdle(){
 
 	uint8_t update = updateReads();
 	if(update && touchState){
-		for(uint8_t i = 0; i < numSense; ++i){
-			if(!(update & _BV(i))) continue;
-
-			if(touchState & (0b01 << (2 * i))){
-				switch(mode){
-					case ONE_PROX:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case TWO_PROX:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case FADE:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					default:
-						break;
-				}
-			} else if( touchState & (0b10 << (2 * i))){
-				switch(mode){
-					case ONE_TOUCH:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case TWO_TOUCH:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case FADE:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					default:
-						break;
-				}
+		if(touchState & (0b01 << (2 * currentSense))){
+			switch(mode){
+				case ONE_PROX:
+					globalState = FADE_IN;
+					startPlay(currentSense);
+					startFade(currentSense);
+					break;
+				case TWO_PROX:
+					globalState = FADE_IN;
+					startPlay(currentSense);
+					startFade(currentSense);
+					break;
+				case FADE:
+					globalState = PLAYING;
+					startPlay(currentSense);
+//					startFade(currentSense);
+					break;
+				default:
+					break;
+			}
+		} else if( touchState & (0b10 << (2 * currentSense))){
+			switch(mode){
+				case ONE_TOUCH:
+					globalState = FADE_IN;
+					startPlay(currentSense);
+					startFade(currentSense);
+					break;
+				case TWO_TOUCH:
+					globalState = FADE_IN;
+					startPlay(currentSense);
+					startFade(currentSense);
+					break;
+				case FADE:
+					globalState = PLAYING;
+					startPlay(currentSense);
+//					startFade(currentSense);
+					break;
+				default:
+					break;
 			}
 		}
 	}
-
 }
 
 void loopPlaying(){
@@ -308,73 +344,67 @@ void loopPlaying(){
 
 	uint8_t update = updateReads();
 
+	if(mode == FADE){
+		fadeVolume = sense[currentActiveSense].proxRatio() / 8;
+		if(fadeVolume == 0) fadeVolume = 1;
+		audioOut.setVolume(fadeVolume);
+	}
+
 	if(update){
-		for(uint8_t i = 0; i < numSense; ++i){
-			if(!(update & _BV(i))) continue;
-
-			if(touchState & (0b01 << (2 * i))){
-				switch(mode){
-					case ONE_PROX:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case TWO_PROX:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case FADE:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					default:
-						break;
-				}
-			} else if(touchState & (0b10 << (2 * i))){
-				switch(mode){
-					case ONE_TOUCH:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case TWO_TOUCH:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					case FADE:
-						globalState = FADE_IN;
-						startPlay(i);
-						startFade(i);
-						break;
-					default:
-						break;
-				}
-			} else if(!(touchState & (0b00 << (2 * i)))){
-			Serial.println("FADE OUT");
-				switch(mode){
-					case ONE_TOUCH:
-						globalState = FADE_OUT;
-						startFade(i);
-						break;
-					case TWO_TOUCH:
-						globalState = FADE_OUT;
-						startFade(i);
-						break;
-					case FADE:
-						globalState = FADE_OUT;
-						startFade(i);
-						break;
-					default:
-						break;
-				}
-
+		if(touchState & (0b01 << (2 * currentSense))){
+			switch(mode){
+				case ONE_PROX:
+					globalState = FADE_IN;
+					startPlay(currentSense);
+					startFade(currentSense);
+					break;
+				case TWO_PROX:
+					globalState = FADE_OUT;
+					startFade(currentSense);
+					break;
+				default:
+					break;
+			}
+		} else if(touchState & (0b10 << (2 * currentSense))){
+			switch(mode){
+				case ONE_TOUCH:
+					globalState = FADE_IN;
+					startPlay(currentSense);
+					startFade(currentSense);
+					break;
+				case TWO_TOUCH:
+					globalState = FADE_OUT;
+					startFade(currentSense);
+					break;
+				default:
+					break;
+			}
+		} else if(!(touchState & (0b00 << (2 * currentSense)))){
+//			Serial.println("FADE OUT");
+			switch(mode){
+				case ONE_TOUCH:
+					globalState = FADE_OUT;
+					startFade(currentSense);
+					break;
+				case TWO_TOUCH:
+				// nothing
+					break;
+				case ONE_PROX:
+					globalState = FADE_OUT;
+					startFade(currentSense);
+					break;
+				case TWO_PROX:
+				// nothing
+					break;
+				case FADE:
+					globalState = FADE_OUT;
+					startFade(currentSense);
+					break;
+				default:
+					break;
 			}
 		}
 	}
-
 }
 
 void loopSetting(){
@@ -382,59 +412,55 @@ void loopSetting(){
 }
 
 uint8_t updateReads(){
-	uint8_t update = false;
-	uint8_t previousState = touchState;
+	uint8_t update = 0;
 
-	for(uint8_t i = 0; i < numSense; i++){
-		uint8_t mask = 0b11 << (2 * i);
-		uint8_t state = 0;
+	uint8_t mask = 0b11 << (2 * currentSense);
+	uint8_t state = 0;
 
-		sense[i].update();
+	sense[currentSense].update();
 
-		if(sense[i].isJustProx()){
-			state = 0b01 << (2 * i);
+	if(sense[currentSense].isJustProx()){
+		state = 0b01 << (2 * currentSense);
 //			Serial.println("prox");
-		} else if(sense[i].isJustTouched()){
-			state = 0b10 << (2 * i);
+	} else if(sense[currentSense].isJustTouched()){
+		state = 0b10 << (2 * currentSense);
 //			Serial.println("touch");
-		} else if(sense[i].isJustReleased()){
-			state = 0b00 << (2 * i);
+	} else if(sense[currentSense].isJustReleased()){
+		state = 0b00 << (2 * currentSense);
 //			Serial.println("air");
-		} else {
-			continue;
-		}
-		
-		switch(priority){
-			case FIRST:
-				if(!(touchState & ~mask)){
-					touchState &= ~mask;
-					touchState |= state;
-					update &= ~_BV(i);
-					update |= _BV(i);
-				}
-				break;
-			case LAST:
-				touchState = state;
-				update = _BV(i);		
-				break;
-			case ALL:
+	} else {
+		return update;
+	}
+	
+	switch(priority){
+		case FIRST:
+			if(!(touchState & ~mask)){
 				touchState &= ~mask;
 				touchState |= state;
-				update &= ~_BV(i);
-				update |= _BV(i);
-				break;
-			default:
-				break;
-		}
+				update &= ~_BV(currentSense);
+				update |= _BV(currentSense);
+			}
+			break;
+		case LAST:
+			touchState = state;
+			update = _BV(currentSense);
+			break;
+		case ALL:
+			touchState &= ~mask;
+			touchState |= state;
+			update &= ~_BV(currentSense);
+			update |= _BV(currentSense);
+			break;
+		default:
+			break;
 	}
-
-//	if(touchState != previousState) update = true;
 
 	return update;
 }
 
 uint8_t startPlay(uint8_t track){
-	Serial.println("FADE IN");
+//	Serial.println("FADE IN");
+	currentActiveSense = track;
 	if(player.playingMusic){
 		if(currentTrack != track){
 		player.stopPlaying();			
@@ -452,15 +478,15 @@ uint8_t startPlay(uint8_t track){
 
 uint8_t stopPlay(){
 	player.stopPlaying();
+	currentActiveSense = -1;
+
 	currentTrack = -1;
-	globalState = IDLE;
-	Serial.println("IDLE");
+//	Serial.println("IDLE");
 	return 0;
 }
 
 uint8_t fade(){
-//	Serial.println(fadeCounter + fadeStep);
-//	Serial.println(millis());
+
 	if(((fadeCounter + fadeStep) > millis())) return 0;
 	fadeCounter = millis();
 	switch(globalState){
@@ -468,13 +494,14 @@ uint8_t fade(){
 			if(++fadeVolume >= maxFadeVolume){
 				fadeVolume = maxFadeVolume;
 				globalState = PLAYING;
-				Serial.println("PLAYING");
+//				Serial.println("PLAYING");
 			}
 			break;
 		case FADE_OUT:
 			if(--fadeVolume <= minFadeVolume){
 				fadeVolume = minFadeVolume;
 				stopPlay();
+				globalState = IDLE;
 			}
 //			Serial.println(fadeVolume);
 			break;
@@ -486,6 +513,7 @@ uint8_t fade(){
 }
 
 uint8_t startFade(uint8_t track){
+	currentActiveSense = track;
 	if(globalState == FADE_IN){
 		fadeStep = fadein[track] / 32;
 	} else if(globalState == FADE_OUT){
